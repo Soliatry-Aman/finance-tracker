@@ -52,7 +52,7 @@ To upgrade to GPT-4o-mini AI suggestions, add your OpenAI API key in `script.js`
 const OPENAI_API_KEY = "your-key-here"
 ```
 
-## 📸 Themes Preview
+##  Themes Preview
 
 | Light | Dark | Glass |
 |-------|------|-------|
