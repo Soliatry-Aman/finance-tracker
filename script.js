@@ -1,521 +1,658 @@
-// =====================
-// DOM ELEMENTS
-// =====================
-let addBtn = document.getElementById("add-btn")
-let resetBtn = document.getElementById("reset-btn")
-let exportBtn = document.getElementById("export-btn")
-let descriptionInput = document.getElementById("description")
-let amountInput = document.getElementById("amount")
-let tableBody = document.getElementById("table-body")
-let balanceDisplay = document.getElementById("balance")
-let categoryInput = document.getElementById("category")
-let totalIncomeDisplay = document.getElementById("total-income")
-let totalExpenseDisplay = document.getElementById("total-expense")
-let savingsRateDisplay = document.getElementById("savings-rate")
-let suggestBtn = document.getElementById("suggest-btn")
-let searchInput = document.getElementById("search-input")
-let filterCategorySelect = document.getElementById("filter-category")
-let filterTypeSelect = document.getElementById("filter-type")
-let filterCount = document.getElementById("filter-count")
-let budgetContent = document.getElementById("budget-content")
-let budgetToggleIcon = document.getElementById("budget-toggle-icon")
+// ============================================================
+// CONSTANTS & CONFIG
+// ============================================================
+const BUDGET_CATS = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Other']
+const OPENAI_KEY  = '' // paste your key here to enable AI suggestions
 
-const OPENAI_API_KEY = "" // Optional: add your OpenAI key here to enable AI suggestions
-const BUDGET_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Other']
+const CAT_EMOJI = { Income:'💰', Food:'🍔', Transport:'🛻', Entertainment:'🎥', Shopping:'🛍️', Other:'📦' }
 
-// =====================
-// DATA
-// =====================
-let transactions = JSON.parse(localStorage.getItem("transactions")) || []
-let budgets = JSON.parse(localStorage.getItem("budgets")) || {}
-let totalBalance = 0
-let budgetOpen = false
+// ============================================================
+// STATE
+// ============================================================
+let transactions  = JSON.parse(localStorage.getItem('transactions')) || []
+let budgets       = JSON.parse(localStorage.getItem('budgets'))      || {}
+let currentTheme  = localStorage.getItem('theme') || 'light'
+let budgetOpen    = false
+let searchQ       = ''
+let filterCatV    = ''
+let filterTypeV   = ''
+let periodFilter  = 'all'
+let currentChart  = 'doughnut'
+let editIndex     = -1
+let _prevBal      = 0
+let totalBalance  = transactions.reduce((s, t) => s + t.amount, 0)
 
-// Filter state
-let searchQuery = ""
-let filterCategory = ""
-let filterType = ""
+_prevBal = totalBalance
 
-// =====================
-// INIT
-// =====================
-transactions.forEach(function(t) {
-    totalBalance += t.amount
-})
-
-// Chart must come before updateChart calls
-let ctx = document.getElementById("myChart").getContext("2d")
-let myChart = new Chart(ctx, {
-    type: "pie",
+// ============================================================
+// CHART SETUP
+// ============================================================
+const chartCtx = document.getElementById('myChart').getContext('2d')
+const myChart  = new Chart(chartCtx, {
+    type: 'doughnut',
     data: {
-        labels: ["Income", "Expense"],
-        datasets: [{
-            data: [0, 0],
-            backgroundColor: ["#2ecc71", "#e74c3c"],
-            borderWidth: 0
-        }]
+        labels: ['Income', 'Expense'],
+        datasets: [{ data: [0, 0], backgroundColor: ['#10b981', '#f43f5e'], borderWidth: 0, hoverOffset: 8 }]
     },
     options: {
+        cutout: '72%',
         plugins: {
-            legend: { position: "bottom" }
-        }
+            legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 12, weight: '600' }, padding: 20, usePointStyle: true, pointStyleWidth: 10, color: '#4a5080' } },
+            tooltip: { callbacks: { label: c => ` ₹${fmt(c.parsed)}` }, padding: 12, cornerRadius: 10 }
+        },
+        animation: { animateScale: true, animateRotate: true, duration: 700 }
     }
 })
 
+// ============================================================
+// DOM REFS
+// ============================================================
+const $ = id => document.getElementById(id)
+const balanceEl     = $('balance')
+const incomeEl      = $('total-income')
+const expenseEl     = $('total-expense')
+const savingsEl     = $('savings-rate')
+const chartPctEl    = $('chart-center-pct')
+const chartCenter   = $('chart-center')
+const stickyNav     = $('topnav')
+const stickyIncome  = $('sticky-income')
+const stickyExpense = $('sticky-expense')
+const stickyBalance = $('sticky-balance')
+const budgetPanel   = $('budget-content')
+const budgetIcon    = $('budget-toggle-icon')
+const budgetHead    = $('budget-header-btn')
+const filterCount   = $('filter-count')
+const txnList       = $('txn-list')
+const searchInput   = $('search-input')
+const searchClear   = $('search-clear')
+const descEl        = $('description')
+const amountEl      = $('amount')
+const catEl         = $('category')
+
+// ============================================================
+// INIT
+// ============================================================
+applyTheme(currentTheme)
 updateBalance()
 updateSummary()
 updateChart()
-renderTable()
+renderTxns()
 loadBudgetInputs()
-updateBudgetDisplay()
-applySavedTheme()
+updateBudgetBars()
 
-// =====================
-// EVENT LISTENERS
-// =====================
-addBtn.addEventListener("click", addTransaction)
-resetBtn.addEventListener("click", resetAll)
-exportBtn.addEventListener("click", exportCSV)
-suggestBtn.addEventListener("click", suggestCategory)
-descriptionInput.addEventListener("keydown", handleEnter)
-amountInput.addEventListener("keydown", handleEnter)
+// ============================================================
+// EVENTS
+// ============================================================
+$('add-btn').addEventListener('click', addTransaction)
+$('reset-btn').addEventListener('click', resetAll)
+$('export-btn').addEventListener('click', exportCSV)
+$('suggest-btn').addEventListener('click', suggestCategory)
 
-searchInput.addEventListener("input", function() {
-    searchQuery = this.value
-    renderTable()
+descEl.addEventListener('keydown',   e => e.key === 'Enter' && (e.preventDefault(), addTransaction()))
+amountEl.addEventListener('keydown', e => e.key === 'Enter' && (e.preventDefault(), addTransaction()))
+
+searchInput.addEventListener('input', function () {
+    searchQ = this.value
+    searchClear.classList.toggle('show', searchQ.length > 0)
+    renderTxns()
 })
-filterCategorySelect.addEventListener("change", function() {
-    filterCategory = this.value
-    renderTable()
-})
-filterTypeSelect.addEventListener("change", function() {
-    filterType = this.value
-    renderTable()
-})
+$('filter-category').addEventListener('change', function () { filterCatV = this.value; renderTxns() })
+$('filter-type').addEventListener('change', function () { filterTypeV = this.value; renderTxns() })
 
-// =====================
-// CORE FUNCTIONS
-// =====================
-function handleEnter(event) {
-    if (event.key === "Enter") {
-        event.preventDefault()
-        addTransaction()
+window.addEventListener('scroll', () => {
+    const atTop = scrollY < 60
+    stickyNav.classList.toggle('at-top', atTop)
+    stickyNav.classList.toggle('scrolled', scrollY > 240)
+}, { passive: true })
+// Initialise nav state immediately
+if (scrollY < 60) stickyNav.classList.add('at-top')
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEditModal() })
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt(n)      { return Math.abs(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }) }
+function fmtShort(n) {
+    const a = Math.abs(n)
+    if (a >= 1e7) return (a/1e7).toFixed(1) + 'Cr'
+    if (a >= 1e5) return (a/1e5).toFixed(1) + 'L'
+    if (a >= 1e3) return (a/1e3).toFixed(1) + 'K'
+    return fmt(a)
+}
+
+function fmtDate(dateStr) {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    if (isNaN(d)) return dateStr
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function dateLabel(dateStr) {
+    if (!dateStr) return 'Earlier'
+    const d = new Date(dateStr)
+    if (isNaN(d)) return 'Earlier'
+    const now  = new Date()
+    const diff = Math.round((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) -
+                             Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000)
+    if (diff === 0)  return 'Today'
+    if (diff === 1)  return 'Yesterday'
+    if (diff <= 7)   return 'This Week'
+    if (diff <= 30)  return 'This Month'
+    return 'Earlier'
+}
+
+function inPeriod(t) {
+    if (periodFilter === 'all') return true
+    const d = new Date(t.date)
+    if (isNaN(d)) return true
+    const now = new Date()
+    if (periodFilter === 'week') {
+        const diff = (now - d) / 86400000
+        return diff <= 7
     }
-}
-
-function formatAmount(amount) {
-    return Math.abs(amount).toLocaleString('en-IN')
-}
-
-function addTransaction() {
-    let description = descriptionInput.value.trim()
-    let category = categoryInput.value
-    let amount = Number(amountInput.value)
-
-    if (description === "" || amountInput.value === "" || categoryInput.value === "") {
-        alert("Please fill in all fields!")
-        return
+    if (periodFilter === 'month') {
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
     }
+    return true
+}
 
-    let transaction = {
-        description: description,
-        category: category,
-        amount: amount,
-        date: new Date().toLocaleString('en-IN')
+function chartLegendColor() {
+    return currentTheme === 'light' ? '#4a5080' : 'rgba(255,255,255,0.7)'
+}
+
+function scrollToAdd() {
+    $('section-add').scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// ============================================================
+// THEME — uses body class so explicit CSS overrides work
+// ============================================================
+function applyTheme(theme) {
+    currentTheme = theme
+    document.body.className = 'theme-' + theme
+
+    // Sync all theme buttons
+    document.querySelectorAll('.tgl-btn').forEach(b => b.classList.remove('active'))
+    const navBtn  = $('sticky-theme-' + theme)
+    if (navBtn)  navBtn.classList.add('active')
+
+    localStorage.setItem('theme', theme)
+
+    // Update chart legend & grid colors
+    myChart.options.plugins.legend.labels.color = chartLegendColor()
+    if (myChart.options.scales?.y) {
+        const tc = chartLegendColor()
+        myChart.options.scales.y.ticks.color = tc
+        myChart.options.scales.x.ticks.color = tc
+        myChart.options.scales.y.grid.color  = theme === 'light' ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.06)'
     }
-
-    transactions.push(transaction)
-    localStorage.setItem("transactions", JSON.stringify(transactions))
-    totalBalance += amount
-
-    descriptionInput.value = ""
-    categoryInput.value = ""
-    amountInput.value = ""
-    suggestBtn.textContent = "🤖 Suggest"
-
-    updateBalance()
-    updateSummary()
-    updateChart()
-    renderTable()
-    updateBudgetDisplay()
-    checkBudgetAlert(transaction)
-}
-
-function renderTable() {
-    let filtered = transactions.filter(function(t) {
-        let matchSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          t.category.toLowerCase().includes(searchQuery.toLowerCase())
-        let matchCategory = !filterCategory || t.category === filterCategory
-        let matchType = !filterType ||
-            (filterType === "income" ? t.amount >= 0 : t.amount < 0)
-        return matchSearch && matchCategory && matchType
-    })
-
-    tableBody.innerHTML = ""
-
-    if (filtered.length === 0) {
-        let emptyRow = document.createElement("tr")
-        emptyRow.id = "empty-state"
-        emptyRow.innerHTML = `
-            <td colspan="5">
-                <div class="empty-state">
-                    <p>🏦</p>
-                    <p>${transactions.length === 0 ? "No transactions yet" : "No results found"}</p>
-                    <p>${transactions.length === 0 ? "Add one above!" : "Try adjusting your filters"}</p>
-                </div>
-            </td>
-        `
-        tableBody.appendChild(emptyRow)
-    } else {
-        filtered.forEach(function(transaction) {
-            let index = transactions.indexOf(transaction)
-            displayTransaction(transaction, index)
-        })
-    }
-
-    // Filter count badge
-    if (searchQuery || filterCategory || filterType) {
-        filterCount.textContent = `Showing ${filtered.length} of ${transactions.length}`
-        filterCount.style.display = "inline-block"
-    } else {
-        filterCount.style.display = "none"
-    }
-}
-
-function displayTransaction(transaction, index) {
-    let newRow = document.createElement("tr")
-    newRow.classList.add("new-row")
-    let isIncome = transaction.amount >= 0
-    let catKey = transaction.category.toLowerCase()
-
-    newRow.innerHTML = `
-        <td class="desc-cell">${transaction.description}</td>
-        <td><span class="cat-badge cat-${catKey}">${transaction.category}</span></td>
-        <td class="${isIncome ? 'income' : 'expense'}">
-            ${isIncome ? '+' : '–'}₹${formatAmount(transaction.amount)}
-        </td>
-        <td class="date-cell">${transaction.date || 'N/A'}</td>
-        <td><button class="delete-btn" onclick="deleteTransaction(${index})">🗑️</button></td>
-    `
-    tableBody.appendChild(newRow)
-}
-
-function deleteTransaction(index) {
-    totalBalance -= transactions[index].amount
-    transactions.splice(index, 1)
-    localStorage.setItem("transactions", JSON.stringify(transactions))
-    updateBalance()
-    updateSummary()
-    updateChart()
-    renderTable()
-    updateBudgetDisplay()
-}
-
-function updateChart() {
-    let totalIncome = 0
-    let totalExpense = 0
-    transactions.forEach(function(t) {
-        if (t.amount >= 0) totalIncome += t.amount
-        else totalExpense += Math.abs(t.amount)
-    })
-    myChart.data.datasets[0].data = [totalIncome, totalExpense]
     myChart.update()
 }
 
-function updateBalance() {
-    balanceDisplay.textContent = "₹ " + formatAmount(totalBalance)
-    balanceDisplay.style.color = totalBalance < 0 ? "#e74c3c" : "#2ecc71"
+function setTheme(theme) { applyTheme(theme) }
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type = 'info', ms = 3500) {
+    const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' }
+    const el    = Object.assign(document.createElement('div'), { className: `toast ${type}` })
+    el.innerHTML = `<span class="toast-icon">${icons[type]}</span><span class="toast-msg">${msg}</span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`
+    $('toast-container').appendChild(el)
+    el._t = setTimeout(() => dismissToast(el), ms)
+}
+function dismissToast(el) {
+    if (!el || el.classList.contains('removing')) return
+    clearTimeout(el._t); el.classList.add('removing')
+    el.addEventListener('animationend', () => el.remove(), { once: true })
 }
 
-function updateSummary() {
-    let totalIncome = 0
-    let totalExpense = 0
-    transactions.forEach(function(t) {
-        if (t.amount >= 0) totalIncome += t.amount
-        else totalExpense += Math.abs(t.amount)
+// ============================================================
+// CONFETTI
+// ============================================================
+function confetti() {
+    const c   = $('confetti-canvas')
+    const ctx = c.getContext('2d')
+    c.width   = innerWidth; c.height = innerHeight
+    const cols  = ['#6366f1','#10b981','#f59e0b','#ec4899','#60a5fa','#34d399','#fbbf24']
+    const bits  = Array.from({ length: 110 }, () => ({
+        x:  Math.random() * c.width,  y:  -Math.random() * c.height * .5,
+        w:  Math.random() * 10 + 5,   h:  Math.random() * 5 + 3,
+        r:  Math.random() * Math.PI * 2, dr: (Math.random() - .5) * .22,
+        vy: Math.random() * 3 + 2,    vx: (Math.random() - .5) * 2,
+        c:  cols[0 | Math.random() * cols.length]
+    }))
+    let alive = true
+    ;(function draw() {
+        ctx.clearRect(0, 0, c.width, c.height)
+        let any = false
+        bits.forEach(b => {
+            if (b.y > c.height + 10) return; any = true
+            b.x += b.vx; b.y += b.vy; b.r += b.dr; b.vy += .05
+            ctx.save()
+            ctx.globalAlpha = Math.max(0, 1 - b.y / c.height * .8)
+            ctx.translate(b.x, b.y); ctx.rotate(b.r)
+            ctx.fillStyle = b.c
+            ctx.fillRect(-b.w/2, -b.h/2, b.w, b.h)
+            ctx.restore()
+        })
+        if (any && alive) requestAnimationFrame(draw)
+        else ctx.clearRect(0, 0, c.width, c.height)
+    })()
+    setTimeout(() => { alive = false; ctx.clearRect(0, 0, c.width, c.height) }, 3500)
+}
+
+// ============================================================
+// QUICK CHIPS
+// ============================================================
+function quickCat(cat) {
+    catEl.value = cat
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'))
+    const map = { Income:'chip-income', Food:'chip-food', Transport:'chip-trans', Entertainment:'chip-enter', Shopping:'chip-shop', Other:'chip-other' }
+    const el  = document.querySelector('.' + map[cat])
+    if (el) el.classList.add('selected')
+    descEl.focus(); scrollToAdd()
+}
+
+// ============================================================
+// ADD TRANSACTION
+// ============================================================
+function addTransaction() {
+    const desc = descEl.value.trim()
+    const cat  = catEl.value
+    const amt  = Number(amountEl.value)
+    let ok     = true
+
+    ;[['field-description', desc === ''], ['field-amount', amountEl.value === ''], ['field-category', cat === '']].forEach(([id, err]) => {
+        const f = $(id)
+        if (err) { f.classList.add('field-error'); setTimeout(() => f.classList.remove('field-error'), 600); ok = false }
+    })
+    if (!ok) { showToast('Please fill in all fields.', 'error'); return }
+
+    const t = { id: Date.now(), description: desc, category: cat, amount: amt, date: new Date().toLocaleString('en-IN') }
+    transactions.push(t)
+    save()
+    totalBalance += amt
+
+    descEl.value = ''; catEl.value = ''; amountEl.value = ''
+    $('suggest-icon').textContent = '🤖'; $('suggest-text').textContent = 'Suggest'
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'))
+
+    updateBalance(true); updateSummary(); updateChart(); renderTxns(); updateBudgetBars()
+    checkBudgetAlert(t)
+
+    if (amt >= 0) { showToast(`💰 <strong>+₹${fmt(amt)}</strong> added as ${cat}`, 'success'); confetti() }
+    else          { showToast(`📝 <strong>${desc}</strong> — ${cat}`, 'info') }
+}
+
+// ============================================================
+// RENDER TRANSACTIONS
+// ============================================================
+function renderTxns() {
+    const now = new Date()
+    const filtered = transactions.filter(t => {
+        const mS = t.description.toLowerCase().includes(searchQ.toLowerCase()) || t.category.toLowerCase().includes(searchQ.toLowerCase())
+        const mC = !filterCatV  || t.category === filterCatV
+        const mT = !filterTypeV || (filterTypeV === 'income' ? t.amount >= 0 : t.amount < 0)
+        const mP = inPeriod(t)
+        return mS && mC && mT && mP
     })
 
-    totalIncomeDisplay.textContent = "₹ " + formatAmount(totalIncome)
-    totalExpenseDisplay.textContent = "₹ " + formatAmount(totalExpense)
+    txnList.innerHTML = ''
 
-    if (totalIncome > 0) {
-        let rate = Math.round(((totalIncome - totalExpense) / totalIncome) * 100)
-        savingsRateDisplay.textContent = rate + "%"
-        savingsRateDisplay.style.color = rate >= 0 ? "#2ecc71" : "#e74c3c"
+    if (!filtered.length) {
+        txnList.innerHTML = `
+            <div class="empty-state">
+                <span class="empty-art">${transactions.length === 0 ? '💸' : '🔍'}</span>
+                <p class="empty-h">${transactions.length === 0 ? 'No transactions yet' : 'Nothing found'}</p>
+                <p class="empty-sub">${transactions.length === 0 ? 'Add your first one above' : 'Try different search or filters'}</p>
+                ${transactions.length === 0 ? '<button class="btn btn-primary" onclick="scrollToAdd();descEl.focus()">Get Started ↑</button>' : ''}
+            </div>`
+        filterCount.style.display = 'none'
+        return
+    }
+
+    // Group by date label (most recent first)
+    const groups = {}
+    ;[...filtered].reverse().forEach(t => {
+        const lbl = dateLabel(t.date)
+        ;(groups[lbl] = groups[lbl] || []).push(t)
+    })
+
+    Object.entries(groups).forEach(([lbl, txns]) => {
+        const g = document.createElement('div')
+        g.className = 'txn-group-label'; g.textContent = lbl
+        txnList.appendChild(g)
+        txns.forEach(t => txnList.appendChild(buildCard(t, transactions.indexOf(t))))
+    })
+
+    // Count badge
+    if (searchQ || filterCatV || filterTypeV || periodFilter !== 'all') {
+        filterCount.textContent = `${filtered.length} of ${transactions.length}`
+        filterCount.style.display = 'inline-block'
     } else {
-        savingsRateDisplay.textContent = "–"
-        savingsRateDisplay.style.color = ""
+        filterCount.style.display = 'none'
     }
 }
 
-function resetAll() {
-    if (!window.confirm("Are you sure you want to delete ALL transactions?")) return
-    transactions = []
-    totalBalance = 0
-    localStorage.removeItem("transactions")
-    updateBalance()
-    updateSummary()
+function buildCard(t, idx) {
+    const isInc  = t.amount >= 0
+    const catKey = t.category.toLowerCase()
+    const emoji  = CAT_EMOJI[t.category] || '📦'
+    const el     = document.createElement('div')
+    el.className = 'txn-card card-in'
+    el.setAttribute('data-idx', idx)
+    el.innerHTML = `
+        <div class="txn-emoji ei-${catKey}">${emoji}</div>
+        <div class="txn-info">
+            <div class="txn-desc">${t.description}</div>
+            <div class="txn-meta">
+                <span class="cat-badge cb-${catKey}">${t.category}</span>
+                <span class="txn-date">${fmtDate(t.date)}</span>
+            </div>
+        </div>
+        <div class="txn-right">
+            <div class="txn-amount ${isInc ? 'pos' : 'neg'}">${isInc ? '+' : '–'}₹${fmt(t.amount)}</div>
+            <div class="txn-actions">
+                <button class="txn-btn edit-btn"   onclick="openEdit(${idx})"   title="Edit">✏️</button>
+                <button class="txn-btn delete-btn" onclick="deleteTxn(${idx})"  title="Delete">🗑️</button>
+            </div>
+        </div>`
+    return el
+}
+
+// ============================================================
+// DELETE
+// ============================================================
+function deleteTxn(idx) {
+    const cards = txnList.querySelectorAll('.txn-card')
+    let target  = null
+    cards.forEach(c => { if (Number(c.getAttribute('data-idx')) === idx) target = c })
+
+    const go = () => {
+        const removed = transactions.splice(idx, 1)[0]
+        totalBalance -= removed.amount
+        save(); updateBalance(true); updateSummary(); updateChart(); renderTxns(); updateBudgetBars()
+        showToast('Transaction deleted.', 'info', 2200)
+    }
+    if (target) { target.classList.add('card-out'); target.addEventListener('animationend', go, { once: true }) }
+    else go()
+}
+
+// ============================================================
+// EDIT
+// ============================================================
+function openEdit(idx) {
+    editIndex = idx
+    const t = transactions[idx]
+    $('edit-description').value = t.description
+    $('edit-amount').value      = t.amount
+    $('edit-category').value    = t.category
+    const modal = $('edit-modal')
+    modal.classList.add('open')
+    setTimeout(() => $('edit-description').focus(), 80)
+}
+
+function closeEditModal(e) {
+    if (e && e.target !== $('edit-modal')) return
+    $('edit-modal').classList.remove('open')
+    editIndex = -1
+}
+
+function saveEdit() {
+    if (editIndex < 0) return
+    const desc = $('edit-description').value.trim()
+    const amt  = Number($('edit-amount').value)
+    const cat  = $('edit-category').value
+    if (!desc || $('edit-amount').value === '' || !cat) { showToast('Fill all fields.', 'error'); return }
+
+    const old = transactions[editIndex]
+    totalBalance = totalBalance - old.amount + amt
+    transactions[editIndex] = { ...old, description: desc, amount: amt, category: cat }
+    save()
+
+    $('edit-modal').classList.remove('open')
+    editIndex = -1
+    updateBalance(true); updateSummary(); updateChart(); renderTxns(); updateBudgetBars()
+    showToast('✏️ Transaction updated!', 'success')
+}
+
+// ============================================================
+// PERIOD FILTER
+// ============================================================
+function setPeriod(p, btn) {
+    periodFilter = p
+    document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'))
+    btn.classList.add('active')
+    renderTxns()
+}
+
+// ============================================================
+// SEARCH CLEAR
+// ============================================================
+function clearSearch() {
+    searchInput.value = ''; searchQ = ''
+    searchClear.classList.remove('show')
+    renderTxns(); searchInput.focus()
+}
+
+// ============================================================
+// BALANCE & SUMMARY
+// ============================================================
+function animateNum(el, from, to, dur = 600, pre = '₹ ') {
+    const t0 = performance.now()
+    ;(function tick(now) {
+        const p = Math.min((now - t0) / dur, 1)
+        const e = 1 - Math.pow(1 - p, 4)
+        el.textContent = pre + fmt(from + (to - from) * e)
+        if (p < 1) requestAnimationFrame(tick)
+        else el.textContent = pre + fmt(to)
+    })(performance.now())
+}
+
+function updateBalance(anim = false) {
+    const isNeg = totalBalance < 0
+    balanceEl.className = 'bc-amount' + (isNeg ? ' neg' : '')
+    if (anim) animateNum(balanceEl, _prevBal, totalBalance, 600, '₹ ')
+    else balanceEl.textContent = '₹ ' + fmt(totalBalance)
+    _prevBal = totalBalance
+}
+
+function updateSummary() {
+    let inc = 0, exp = 0
+    transactions.filter(inPeriod).forEach(t => { t.amount >= 0 ? (inc += t.amount) : (exp += Math.abs(t.amount)) })
+
+    incomeEl.textContent  = '₹ ' + fmt(inc)
+    expenseEl.textContent = '₹ ' + fmt(exp)
+    stickyIncome.textContent  = '₹' + fmtShort(inc)
+    stickyExpense.textContent = '₹' + fmtShort(exp)
+    stickyBalance.textContent = (totalBalance < 0 ? '-' : '') + '₹' + fmtShort(totalBalance)
+
+    if (inc > 0) {
+        const rate = Math.round(((inc - exp) / inc) * 100)
+        savingsEl.textContent  = rate + '%'
+        savingsEl.style.color  = rate >= 0 ? 'var(--c-green)' : 'var(--c-red)'
+        chartPctEl.textContent = rate + '%'
+    } else {
+        savingsEl.textContent  = '–'; savingsEl.style.color = ''; chartPctEl.textContent = '–'
+    }
+}
+
+// ============================================================
+// CHART
+// ============================================================
+function updateChart() {
+    let inc = 0, exp = 0
+    transactions.forEach(t => { t.amount >= 0 ? (inc += t.amount) : (exp += Math.abs(t.amount)) })
+
+    myChart.options.plugins.legend.labels.color = chartLegendColor()
+
+    if (currentChart === 'doughnut') {
+        myChart.data.labels                   = ['Income', 'Expense']
+        myChart.data.datasets[0].data         = [inc, exp]
+        myChart.data.datasets[0].backgroundColor = ['#10b981', '#f43f5e']
+    } else {
+        const sp = {}; BUDGET_CATS.forEach(c => { sp[c] = 0 })
+        transactions.forEach(t => { if (t.amount < 0 && sp[t.category] !== undefined) sp[t.category] += Math.abs(t.amount) })
+        myChart.data.labels                   = Object.keys(sp)
+        myChart.data.datasets[0].data         = Object.values(sp)
+        myChart.data.datasets[0].backgroundColor = ['#f97316','#3b82f6','#8b5cf6','#f43f5e','#64748b']
+    }
+    myChart.update()
+}
+
+function switchChart(type, btn) {
+    currentChart = type
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+    btn.classList.add('active')
+    const isDoughnut = type === 'doughnut'
+
+    myChart.config.type     = isDoughnut ? 'doughnut' : 'bar'
+    myChart.options.cutout  = isDoughnut ? '72%' : undefined
+    myChart.options.plugins.legend.display = isDoughnut
+    chartCenter.classList.toggle('hidden', !isDoughnut)
+
+    const canvas = $('myChart')
+    canvas.className = isDoughnut ? '' : 'bar-mode'
+
+    if (!isDoughnut) {
+        const tc = chartLegendColor()
+        const gc = currentTheme === 'light' ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.06)'
+        myChart.options.scales = {
+            y: { grid: { color: gc }, ticks: { callback: v => '₹' + fmtShort(v), color: tc } },
+            x: { ticks: { color: tc } }
+        }
+    } else {
+        delete myChart.options.scales
+    }
     updateChart()
-    renderTable()
-    updateBudgetDisplay()
 }
 
-// =====================
-// THEME
-// =====================
-function setTheme(theme, clickedBtn) {
-    document.documentElement.classList.remove('dark', 'glass')
-    if (theme === 'dark') document.documentElement.classList.add('dark')
-    else if (theme === 'glass') document.documentElement.classList.add('glass')
-
-    document.querySelectorAll('.theme-btn').forEach(function(btn) {
-        btn.classList.remove('active')
-    })
-    if (clickedBtn) clickedBtn.classList.add('active')
-    localStorage.setItem('theme', theme)
-}
-
-function applySavedTheme() {
-    let saved = localStorage.getItem('theme')
-    if (!saved) return
-    document.documentElement.classList.remove('dark', 'glass')
-    if (saved === 'dark') document.documentElement.classList.add('dark')
-    else if (saved === 'glass') document.documentElement.classList.add('glass')
-    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'))
-    let btn = document.getElementById('theme-' + saved)
-    if (btn) btn.classList.add('active')
-}
-
-// =====================
-// BUDGET MANAGER
-// =====================
+// ============================================================
+// BUDGET
+// ============================================================
 function loadBudgetInputs() {
-    BUDGET_CATEGORIES.forEach(function(cat) {
-        let input = document.getElementById('budget-' + cat)
-        if (input && budgets[cat]) input.value = budgets[cat]
-    })
+    BUDGET_CATS.forEach(c => { const el = $('budget-' + c); if (el && budgets[c]) el.value = budgets[c] })
 }
 
 function saveAllBudgets() {
-    BUDGET_CATEGORIES.forEach(function(cat) {
-        let input = document.getElementById('budget-' + cat)
-        let val = Number(input.value)
-        if (val > 0) {
-            budgets[cat] = val
-        } else {
-            delete budgets[cat]
-        }
+    BUDGET_CATS.forEach(c => {
+        const v = Number($('budget-' + c).value)
+        if (v > 0) budgets[c] = v; else delete budgets[c]
     })
-    localStorage.setItem("budgets", JSON.stringify(budgets))
-    updateBudgetDisplay()
-
-    let btn = document.getElementById("save-budgets-btn")
-    btn.textContent = "✅ Saved!"
-    setTimeout(function() { btn.textContent = "💾 Save Budgets" }, 1500)
+    localStorage.setItem('budgets', JSON.stringify(budgets))
+    updateBudgetBars()
+    showToast('Budgets saved! 🎯', 'success')
+    if (budgetOpen) budgetPanel.style.maxHeight = budgetPanel.scrollHeight + 400 + 'px'
 }
 
 function toggleBudget() {
     budgetOpen = !budgetOpen
-    budgetContent.style.maxHeight = budgetOpen ? budgetContent.scrollHeight + 500 + "px" : "0"
-    budgetContent.style.opacity = budgetOpen ? "1" : "0"
-    budgetToggleIcon.textContent = budgetOpen ? "▲ Collapse" : "▼ Expand"
+    budgetPanel.classList.toggle('open', budgetOpen)
+    budgetPanel.style.maxHeight = budgetOpen ? budgetPanel.scrollHeight + 600 + 'px' : '0'
+    budgetIcon.classList.toggle('open', budgetOpen)
+    budgetHead.setAttribute('aria-expanded', budgetOpen)
 }
 
-function updateBudgetDisplay() {
-    let barsContainer = document.getElementById("budget-bars")
-    if (!barsContainer) return
+function updateBudgetBars() {
+    const el = $('budget-bars')
+    if (!el) return
+    const sp = {}
+    transactions.forEach(t => { if (t.amount < 0) sp[t.category] = (sp[t.category] || 0) + Math.abs(t.amount) })
 
-    // Calculate spending per category from transactions
-    let spending = {}
-    transactions.forEach(function(t) {
-        if (t.amount < 0) {
-            spending[t.category] = (spending[t.category] || 0) + Math.abs(t.amount)
-        }
-    })
+    if (!Object.keys(budgets).length) { el.innerHTML = '<p class="budget-hint">Set monthly limits above, then click Save Budgets.</p>'; return }
 
-    let hasBudgets = Object.keys(budgets).length > 0
-    if (!hasBudgets) {
-        barsContainer.innerHTML = '<p class="budget-hint">👆 Set your monthly limits above and click Save Budgets to track spending.</p>'
-        return
-    }
-
-    let html = '<div class="budget-progress-list">'
-    BUDGET_CATEGORIES.forEach(function(cat) {
-        if (!budgets[cat]) return
-        let budget = budgets[cat]
-        let spent = spending[cat] || 0
-        let percent = Math.min((spent / budget) * 100, 100)
-        let isOver = spent > budget
-        let isWarning = percent >= 80 && !isOver
-
-        let barClass = isOver ? 'bar-danger' : isWarning ? 'bar-warning' : 'bar-safe'
-        let statusIcon = isOver ? '🚨' : isWarning ? '⚠️' : '✅'
-
+    let html = '<div class="budget-bars-list" style="margin-top:16px">'
+    BUDGET_CATS.forEach(c => {
+        if (!budgets[c]) return
+        const b = budgets[c], s = sp[c] || 0, rawP = (s / b) * 100, p = Math.min(rawP, 100)
+        const over = s > b, warn = rawP >= 80 && !over
+        const cls  = over ? 'prog-danger' : warn ? 'prog-warn' : 'prog-safe'
+        const icon = over ? '🚨' : warn ? '⚠️' : '✅'
         html += `
-            <div class="budget-progress-item ${isOver ? 'budget-over' : ''}">
-                <div class="budget-progress-header">
-                    <span class="budget-cat-name">${statusIcon} ${cat}</span>
-                    <span class="budget-amounts">
-                        <span class="${isOver ? 'text-danger' : ''}"">₹${formatAmount(spent)}</span>
-                        <span class="text-muted"> / ₹${formatAmount(budget)}</span>
-                    </span>
-                </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill ${barClass}" style="width: ${percent}%"></div>
-                </div>
-                <div class="budget-remaining">
-                    ${isOver
-                        ? `<span class="text-danger">🔴 Over by ₹${formatAmount(spent - budget)}</span>`
-                        : `<span class="text-success">₹${formatAmount(budget - spent)} remaining (${Math.round(100 - percent)}%)</span>`
-                    }
-                </div>
+        <div class="bbar${over ? ' over' : ''}">
+            <div class="bbar-head">
+                <span class="bbar-name">${icon} ${CAT_EMOJI[c] || ''} ${c}</span>
+                <span class="bbar-amts"><span class="${over ? 't-danger' : ''}">₹${fmt(s)}</span><span class="t-muted"> / ₹${fmt(b)}</span></span>
             </div>
-        `
+            <div class="prog-bg"><div class="prog-fill ${cls}" style="width:${p}%"></div></div>
+            <div class="bbar-remain">${over ? `<span class="t-danger">Over by ₹${fmt(s-b)}</span>` : `<span class="t-success">₹${fmt(b-s)} left (${Math.round(100-rawP)}%)</span>`}</div>
+        </div>`
     })
     html += '</div>'
-    barsContainer.innerHTML = html
+    el.innerHTML = html
+    if (budgetOpen) budgetPanel.style.maxHeight = budgetPanel.scrollHeight + 200 + 'px'
 }
 
-function checkBudgetAlert(transaction) {
-    if (transaction.amount >= 0) return
-    let cat = transaction.category
-    if (!budgets[cat]) return
-
-    let spent = 0
-    transactions.forEach(function(t) {
-        if (t.amount < 0 && t.category === cat) spent += Math.abs(t.amount)
-    })
-
-    let percent = (spent / budgets[cat]) * 100
-    if (spent > budgets[cat]) {
-        setTimeout(function() {
-            alert(`🚨 Budget Exceeded!\nYou've gone over your ${cat} budget.\n\nBudget: ₹${formatAmount(budgets[cat])}\nSpent: ₹${formatAmount(spent)}\nOver by: ₹${formatAmount(spent - budgets[cat])}`)
-        }, 200)
-    } else if (percent >= 80) {
-        setTimeout(function() {
-            alert(`⚠️ Budget Warning!\nYou've used ${Math.round(percent)}% of your ${cat} budget.\n\nBudget: ₹${formatAmount(budgets[cat])}\nSpent: ₹${formatAmount(spent)}\nRemaining: ₹${formatAmount(budgets[cat] - spent)}`)
-        }, 200)
-    }
+function checkBudgetAlert(t) {
+    if (t.amount >= 0 || !budgets[t.category]) return
+    const spent = transactions.filter(x => x.amount < 0 && x.category === t.category).reduce((s, x) => s + Math.abs(x.amount), 0)
+    const pct   = (spent / budgets[t.category]) * 100
+    if (spent > budgets[t.category])  setTimeout(() => showToast(`🚨 <strong>${t.category}</strong> budget exceeded! Over by ₹${fmt(spent - budgets[t.category])}`, 'error', 6000), 500)
+    else if (pct >= 80)               setTimeout(() => showToast(`⚠️ <strong>${t.category}</strong> at ${Math.round(pct)}% of budget`, 'warning', 5000), 500)
 }
 
-// =====================
-// CSV EXPORT
-// =====================
+// ============================================================
+// RESET & EXPORT
+// ============================================================
+function resetAll() {
+    if (!confirm('Delete ALL transactions? This cannot be undone.')) return
+    transactions = []; totalBalance = 0; _prevBal = 0
+    localStorage.removeItem('transactions')
+    updateBalance(); updateSummary(); updateChart(); renderTxns(); updateBudgetBars()
+    showToast('All data cleared.', 'info')
+}
+
 function exportCSV() {
-    if (transactions.length === 0) {
-        alert("No transactions to export!")
-        return
-    }
-
-    let headers = ["Description", "Category", "Amount", "Type", "Date"]
-    let rows = transactions.map(function(t) {
-        return [
-            `"${t.description.replace(/"/g, '""')}"`,
-            t.category,
-            Math.abs(t.amount).toFixed(2),
-            t.amount >= 0 ? "Income" : "Expense",
-            `"${t.date || ''}"`
-        ].join(",")
+    if (!transactions.length) { showToast('No transactions to export!', 'warning'); return }
+    const rows = transactions.map(t => [`"${t.description.replace(/"/g,'""')}"`, t.category, Math.abs(t.amount).toFixed(2), t.amount >= 0 ? 'Income' : 'Expense', `"${t.date || ''}"`].join(','))
+    const csv  = ['Description,Category,Amount,Type,Date', ...rows].join('\n')
+    const a    = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })),
+        download: `finsight-${new Date().toISOString().split('T')[0]}.csv`
     })
-
-    let csv = [headers.join(","), ...rows].join("\n")
-    let blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
-    let url = URL.createObjectURL(blob)
-    let a = document.createElement("a")
-    a.href = url
-    a.download = `finance-tracker-${new Date().toISOString().split('T')[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-
-    exportBtn.textContent = "✅ Exported!"
-    setTimeout(function() { exportBtn.textContent = "📥 Export CSV" }, 2000)
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    showToast('📥 CSV exported!', 'success')
 }
 
-// =====================
-// SMART SUGGEST (local keyword engine + optional OpenAI fallback)
-// =====================
-const CATEGORY_RULES = {
-    'Income':        ['salary', 'income', 'wage', 'bonus', 'freelance', 'stipend',
-                      'refund', 'dividend', 'interest', 'profit', 'earning', 'payment received',
-                      'reimbursement', 'allowance', 'grant', 'credit'],
-    'Food':          ['food', 'restaurant', 'cafe', 'coffee', 'lunch', 'dinner',
-                      'breakfast', 'pizza', 'burger', 'swiggy', 'zomato', 'grocery',
-                      'groceries', 'snack', 'meal', 'eat', 'drink', 'tea', 'biryani',
-                      'dosa', 'chai', 'bakery', 'dairy', 'vegetables', 'fruit', 'milk',
-                      'canteen', 'dhaba', 'takeaway', 'dominos', 'mcdonalds', 'kfc'],
-    'Transport':     ['uber', 'ola', 'taxi', 'auto', 'bus', 'metro', 'train', 'flight',
-                      'petrol', 'fuel', 'gas', 'parking', 'toll', 'cab', 'travel',
-                      'transport', 'rickshaw', 'bike', 'rapido', 'irctc', 'railway',
-                      'airways', 'airport', 'ferry', 'ride'],
-    'Entertainment': ['netflix', 'amazon prime', 'hotstar', 'spotify', 'movie', 'cinema',
-                      'game', 'gaming', 'youtube', 'subscription', 'concert', 'show',
-                      'ticket', 'fun', 'party', 'outing', 'disney', 'hbo', 'prime video',
-                      'zee5', 'sonyliv', 'club', 'bar', 'pub', 'bowling', 'gym', 'sport'],
-    'Shopping':      ['amazon', 'flipkart', 'myntra', 'shopping', 'clothes', 'shoes',
-                      'fashion', 'mall', 'purchase', 'buy', 'order', 'delivery', 'online',
-                      'meesho', 'ajio', 'nykaa', 'electronics', 'mobile', 'laptop',
-                      'furniture', 'decor', 'apparel', 'jewellery', 'watch']
+// ============================================================
+// SAVE
+// ============================================================
+function save() { localStorage.setItem('transactions', JSON.stringify(transactions)) }
+
+// ============================================================
+// SMART SUGGEST
+// ============================================================
+const CAT_RULES = {
+    Income:        ['salary','income','wage','bonus','freelance','stipend','refund','dividend','interest','profit','earning','credit','allowance'],
+    Food:          ['food','restaurant','cafe','coffee','lunch','dinner','breakfast','pizza','burger','swiggy','zomato','grocery','groceries','snack','meal','eat','drink','tea','biryani','dosa','chai','bakery','milk','canteen','dhaba','dominos','mcdonalds','kfc'],
+    Transport:     ['uber','ola','taxi','auto','bus','metro','train','flight','petrol','fuel','gas','parking','toll','cab','travel','transport','rickshaw','rapido','irctc','railway','airport','ferry','ride'],
+    Entertainment: ['netflix','amazon prime','hotstar','spotify','movie','cinema','game','gaming','youtube','subscription','concert','show','ticket','party','outing','disney','hbo','zee5','sonyliv','club','bar','pub','gym','sport'],
+    Shopping:      ['amazon','flipkart','myntra','shopping','clothes','shoes','fashion','mall','purchase','buy','order','delivery','online','meesho','ajio','nykaa','electronics','mobile','laptop','furniture','jewellery','watch']
 }
 
-function localSuggest(description) {
-    let lower = description.toLowerCase()
-    for (let [category, keywords] of Object.entries(CATEGORY_RULES)) {
-        for (let keyword of keywords) {
-            if (lower.includes(keyword)) return category
-        }
-    }
+function localSuggest(d) {
+    const l = d.toLowerCase()
+    for (const [c, ks] of Object.entries(CAT_RULES)) for (const k of ks) if (l.includes(k)) return c
     return 'Other'
 }
 
 async function suggestCategory() {
-    let description = descriptionInput.value.trim()
-    if (description === "") {
-        alert("Please type a description first!")
-        return
-    }
-
-    suggestBtn.textContent = "⌛ Thinking..."
-    suggestBtn.disabled = true
-
-    // Simulate a brief "thinking" delay for UX
-    await new Promise(r => setTimeout(r, 600))
-
-    let suggested = localSuggest(description)
-
-    // Try OpenAI only if key looks valid (not the placeholder)
-    if (OPENAI_API_KEY && !OPENAI_API_KEY.startsWith("sk-proj-YOUR")) {
+    const desc = descEl.value.trim()
+    if (!desc) { showToast('Type a description first!', 'warning'); return }
+    const icon = $('suggest-icon'), text = $('suggest-text')
+    icon.textContent = '⏳'; text.textContent = '…'; $('suggest-btn').disabled = true
+    await new Promise(r => setTimeout(r, 500))
+    let s = localSuggest(desc)
+    if (OPENAI_KEY && !OPENAI_KEY.startsWith('sk-YOUR')) {
         try {
-            let response = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${OPENAI_API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: "gpt-4o-mini",
-                    messages: [{
-                        role: "user",
-                        content: `You are a finance categorizer. Based on this transaction description: "${description}", suggest the most appropriate category from ONLY these options: Income, Food, Transport, Entertainment, Shopping, Other. Reply with ONLY the category name, nothing else.`
-                    }],
-                    max_tokens: 10
-                })
-            })
-            let data = await response.json()
-            if (data.choices && data.choices[0]) {
-                suggested = data.choices[0].message.content.trim()
-            }
-        } catch(e) {
-            console.warn("OpenAI fallback failed, using local suggestion:", e)
-        }
+            const r = await fetch('https://api.openai.com/v1/chat/completions', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+OPENAI_KEY}, body: JSON.stringify({ model:'gpt-4o-mini', max_tokens:10, messages:[{role:'user',content:`Categorize: "${desc}". Choose one: Income, Food, Transport, Entertainment, Shopping, Other. Reply ONLY with the category.`}] }) })
+            const d = await r.json()
+            if (d.choices?.[0]) s = d.choices[0].message.content.trim()
+        } catch {}
     }
-
-    categoryInput.value = suggested
-    suggestBtn.textContent = "✅ " + suggested
-
-    setTimeout(function() {
-        suggestBtn.textContent = "🤖 Suggest"
-        suggestBtn.disabled = false
-    }, 1800)
+    catEl.value = s; quickCat(s)
+    icon.textContent = '✅'; text.textContent = s
+    showToast(`Suggested: <strong>${s}</strong>`, 'success', 2000)
+    setTimeout(() => { icon.textContent = '🤖'; text.textContent = 'Suggest'; $('suggest-btn').disabled = false }, 2000)
 }
