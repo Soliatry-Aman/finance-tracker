@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Tracker – Smart Personal Finance</title>
+    <meta name="description" content="AI-powered personal finance tracker with budgets, filters, and CSV export.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Theme Switcher -->
+        <div class="theme-switcher">
+            <button class="theme-btn active" id="theme-light" onclick="setTheme('light',this)">☀️ Light</button>
+            <button class="theme-btn" id="theme-dark" onclick="setTheme('dark',this)">🌑 Dark</button>
+            <button class="theme-btn" id="theme-glass" onclick="setTheme('glass',this)">✨ Glass</button>
+        </div>
+
+        <h1>💳 Finance Tracker</h1>
+
+        <!-- Balance Box -->
+        <div class="balance-box">
+            <p>Total Balance</p>
+            <h2 id="balance">₹ 0</h2>
+            <div class="balance-summary">
+                <div class="summary-item">
+                    <p class="summary-label">✅ Income</p>
+                    <p class="summary-amount income" id="total-income">₹ 0</p>
+                </div>
+                <div class="summary-item">
+                    <p class="summary-label">❌ Expense</p>
+                    <p class="summary-amount expense" id="total-expense">₹ 0</p>
+                </div>
+                <div class="summary-item">
+                    <p class="summary-label">💹 Savings Rate</p>
+                    <p class="summary-amount" id="savings-rate">–</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Box -->
+        <div class="chart-box">
+            <canvas id="myChart"></canvas>
+        </div>
+
+        <!-- Budget Manager -->
+        <div class="budget-section">
+            <div class="budget-header" onclick="toggleBudget()" id="budget-header-btn">
+                <span>📊 Budget Manager</span>
+                <span id="budget-toggle-icon">▼ Expand</span>
+            </div>
+            <div class="budget-content" id="budget-content">
+                <p class="budget-desc">Set monthly spending limits per category. You'll get alerts when approaching or exceeding your budget.</p>
+                <div class="budget-input-grid">
+                    <div class="budget-input-item">
+                        <label for="budget-Food">🍔 Food</label>
+                        <input type="number" id="budget-Food" placeholder="e.g. 5000" min="0">
+                    </div>
+                    <div class="budget-input-item">
+                        <label for="budget-Transport">🛻 Transport</label>
+                        <input type="number" id="budget-Transport" placeholder="e.g. 2000" min="0">
+                    </div>
+                    <div class="budget-input-item">
+                        <label for="budget-Entertainment">🎥 Entertainment</label>
+                        <input type="number" id="budget-Entertainment" placeholder="e.g. 3000" min="0">
+                    </div>
+                    <div class="budget-input-item">
+                        <label for="budget-Shopping">🛍️ Shopping</label>
+                        <input type="number" id="budget-Shopping" placeholder="e.g. 4000" min="0">
+                    </div>
+                    <div class="budget-input-item">
+                        <label for="budget-Other">📦 Other</label>
+                        <input type="number" id="budget-Other" placeholder="e.g. 1000" min="0">
+                    </div>
+                    <div class="budget-input-item budget-save-wrap">
+                        <label>&nbsp;</label>
+                        <button id="save-budgets-btn" onclick="saveAllBudgets()">💾 Save Budgets</button>
+                    </div>
+                </div>
+                <div id="budget-bars"></div>
+            </div>
+        </div>
+
+        <!-- Form Box -->
+        <div class="form-box">
+            <div class="input-row">
+                <input type="text" id="description" placeholder="Description (e.g. salary, grocery run...)" />
+                <button id="suggest-btn">🤖 Suggest</button>
+            </div>
+            <select id="category">
+                <option value="">Select Category</option>
+                <option value="Income">💰 Income</option>
+                <option value="Food">🍔 Food</option>
+                <option value="Transport">🛻 Transport</option>
+                <option value="Entertainment">🎥 Entertainment</option>
+                <option value="Shopping">🛍️ Shopping</option>
+                <option value="Other">📦 Other</option>
+            </select>
+            <input type="number" id="amount" placeholder="Amount  (+500 = income,  –500 = expense)" />
+            <div class="btn-row">
+                <button id="add-btn">➕ Add Transaction</button>
+                <button id="export-btn">📥 Export CSV</button>
+                <button id="reset-btn">🗑️ Reset All</button>
+            </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <input type="text" id="search-input" placeholder="🔍 Search transactions..." />
+            <select id="filter-category">
+                <option value="">All Categories</option>
+                <option value="Income">💰 Income</option>
+                <option value="Food">🍔 Food</option>
+                <option value="Transport">🛻 Transport</option>
+                <option value="Entertainment">🎥 Entertainment</option>
+                <option value="Shopping">🛍️ Shopping</option>
+                <option value="Other">📦 Other</option>
+            </select>
+            <select id="filter-type">
+                <option value="">All Types</option>
+                <option value="income">💚 Income Only</option>
+                <option value="expense">❤️ Expense Only</option>
+            </select>
+            <span id="filter-count" class="filter-count"></span>
+        </div>
+
+        <!-- Transaction Table -->
+        <table class="transaction-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <tr id="empty-state">
+                    <td colspan="5">
+                        <div class="empty-state">
+                            <p>🏦</p>
+                            <p>No transactions yet</p>
+                            <p>Add one above!</p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
