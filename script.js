@@ -4,7 +4,14 @@
 const BUDGET_CATS = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Other']
 const OPENAI_KEY  = '' // paste your key here to enable AI suggestions
 
-const CAT_EMOJI = { Income:'💰', Food:'🍔', Transport:'🛻', Entertainment:'🎥', Shopping:'🛍️', Other:'📦' }
+const CAT_ICON = { 
+    Income: '<i data-lucide="coins" class="lucide-sm"></i>', 
+    Food: '<i data-lucide="utensils" class="lucide-sm"></i>', 
+    Transport: '<i data-lucide="car" class="lucide-sm"></i>', 
+    Entertainment: '<i data-lucide="film" class="lucide-sm"></i>', 
+    Shopping: '<i data-lucide="shopping-bag" class="lucide-sm"></i>', 
+    Other: '<i data-lucide="package" class="lucide-sm"></i>' 
+}
 
 // ============================================================
 // STATE
@@ -195,11 +202,20 @@ function setTheme(theme) { applyTheme(theme) }
 // TOAST
 // ============================================================
 function showToast(msg, type = 'info', ms = 3500) {
-    const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' }
-    const el    = Object.assign(document.createElement('div'), { className: `toast ${type}` })
-    el.innerHTML = `<span class="toast-icon">${icons[type]}</span><span class="toast-msg">${msg}</span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`
-    $('toast-container').appendChild(el)
-    el._t = setTimeout(() => dismissToast(el), ms)
+    const toastContainer = $('toast-container')
+    const toast = document.createElement('div')
+    toast.className = `toast toast-enter ${type}`
+    
+    const iconHtml = type === 'success' ? '<i data-lucide="check-circle-2"></i>' : type === 'error' ? '<i data-lucide="alert-octagon"></i>' : '<i data-lucide="alert-triangle"></i>'
+    
+    toast.innerHTML = `
+        <div class="toast-icon">${iconHtml}</div>
+        <div class="toast-msg">${msg}</div>
+        <button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>
+    `
+    toastContainer.appendChild(toast)
+    lucide.createIcons({ root: toast })
+    toast._t = setTimeout(() => dismissToast(toast), ms)
 }
 function dismissToast(el) {
     if (!el || el.classList.contains('removing')) return
@@ -289,26 +305,25 @@ function addTransaction() {
 // RENDER TRANSACTIONS
 // ============================================================
 function renderTxns() {
-    const now = new Date()
-    const filtered = transactions.filter(t => {
-        const mS = t.description.toLowerCase().includes(searchQ.toLowerCase()) || t.category.toLowerCase().includes(searchQ.toLowerCase())
-        const mC = !filterCatV  || t.category === filterCatV
-        const mT = !filterTypeV || (filterTypeV === 'income' ? t.amount >= 0 : t.amount < 0)
-        const mP = inPeriod(t)
-        return mS && mC && mT && mP
-    })
-
-    txnList.innerHTML = ''
+    const list = $('txn-list')
+    list.innerHTML = ''
+    
+    let filtered = transactions.filter(inPeriod)
+    
+    if (searchQ) filtered = filtered.filter(t => t.description.toLowerCase().includes(searchQ.toLowerCase()))
+    if (filterCatV) filtered = filtered.filter(t => t.category === filterCatV)
+    if (filterTypeV === 'income') filtered = filtered.filter(t => t.amount >= 0)
+    if (filterTypeV === 'expense') filtered = filtered.filter(t => t.amount < 0)
+    
+    $('filter-count').textContent = filtered.length
 
     if (!filtered.length) {
-        txnList.innerHTML = `
-            <div class="empty-state">
-                <span class="empty-art">${transactions.length === 0 ? '💸' : '🔍'}</span>
-                <p class="empty-h">${transactions.length === 0 ? 'No transactions yet' : 'Nothing found'}</p>
-                <p class="empty-sub">${transactions.length === 0 ? 'Add your first one above' : 'Try different search or filters'}</p>
-                ${transactions.length === 0 ? '<button class="btn btn-primary" onclick="scrollToAdd();descEl.focus()">Get Started ↑</button>' : ''}
-            </div>`
-        filterCount.style.display = 'none'
+        list.innerHTML = `<div class="empty-state">
+            <div class="empty-icon"><i data-lucide="search-x" class="lucide-lg"></i></div>
+            <h3 class="empty-title">No transactions found</h3>
+            <p class="empty-sub">Try adjusting your filters or search query.</p>
+        </div>`
+        lucide.createIcons({ root: list })
         return
     }
 
@@ -322,13 +337,14 @@ function renderTxns() {
     Object.entries(groups).forEach(([lbl, txns]) => {
         const g = document.createElement('div')
         g.className = 'txn-group-label'; g.textContent = lbl
-        txnList.appendChild(g)
-        txns.forEach(t => txnList.appendChild(buildCard(t, transactions.indexOf(t))))
+        list.appendChild(g)
+        txns.forEach(t => list.appendChild(buildCard(t, transactions.indexOf(t))))
     })
+
+    lucide.createIcons({ root: list })
 
     // Count badge
     if (searchQ || filterCatV || filterTypeV || periodFilter !== 'all') {
-        filterCount.textContent = `${filtered.length} of ${transactions.length}`
         filterCount.style.display = 'inline-block'
     } else {
         filterCount.style.display = 'none'
@@ -338,12 +354,12 @@ function renderTxns() {
 function buildCard(t, idx) {
     const isInc  = t.amount >= 0
     const catKey = t.category.toLowerCase()
-    const emoji  = CAT_EMOJI[t.category] || '📦'
+    const icon   = CAT_ICON[t.category] || '<i data-lucide="package" class="lucide-sm"></i>'
     const el     = document.createElement('div')
     el.className = 'txn-card card-in'
     el.setAttribute('data-idx', idx)
     el.innerHTML = `
-        <div class="txn-emoji ei-${catKey}">${emoji}</div>
+        <div class="txn-emoji ei-${catKey}">${icon}</div>
         <div class="txn-info">
             <div class="txn-desc">${t.description}</div>
             <div class="txn-meta">
@@ -354,8 +370,8 @@ function buildCard(t, idx) {
         <div class="txn-right">
             <div class="txn-amount ${isInc ? 'pos' : 'neg'}">${isInc ? '+' : '–'}₹${fmt(t.amount)}</div>
             <div class="txn-actions">
-                <button class="txn-btn edit-btn"   onclick="openEdit(${idx})"   title="Edit">✏️</button>
-                <button class="txn-btn delete-btn" onclick="deleteTxn(${idx})"  title="Delete">🗑️</button>
+                <button class="txn-btn edit-btn"   onclick="openEdit(${idx})"   title="Edit"><i data-lucide="edit-2" class="lucide-sm"></i></button>
+                <button class="txn-btn delete-btn" onclick="deleteTxn(${idx})"  title="Delete"><i data-lucide="trash-2" class="lucide-sm"></i></button>
             </div>
         </div>`
     return el
@@ -542,7 +558,7 @@ function saveAllBudgets() {
     })
     localStorage.setItem('budgets', JSON.stringify(budgets))
     updateBudgetBars()
-    showToast('Budgets saved! 🎯', 'success')
+    showToast('Budgets saved!', 'success')
     if (budgetOpen) budgetPanel.style.maxHeight = budgetPanel.scrollHeight + 400 + 'px'
 }
 
@@ -568,11 +584,11 @@ function updateBudgetBars() {
         const b = budgets[c], s = sp[c] || 0, rawP = (s / b) * 100, p = Math.min(rawP, 100)
         const over = s > b, warn = rawP >= 80 && !over
         const cls  = over ? 'prog-danger' : warn ? 'prog-warn' : 'prog-safe'
-        const icon = over ? '🚨' : warn ? '⚠️' : '✅'
+        const icon = over ? '<i data-lucide="alert-octagon" class="lucide-sm"></i>' : warn ? '<i data-lucide="alert-triangle" class="lucide-sm"></i>' : '<i data-lucide="check-circle-2" class="lucide-sm"></i>'
         html += `
         <div class="bbar${over ? ' over' : ''}">
             <div class="bbar-head">
-                <span class="bbar-name">${icon} ${CAT_EMOJI[c] || ''} ${c}</span>
+                <span class="bbar-name">${icon} ${CAT_ICON[c] || ''} ${c}</span>
                 <span class="bbar-amts"><span class="${over ? 't-danger' : ''}">₹${fmt(s)}</span><span class="t-muted"> / ₹${fmt(b)}</span></span>
             </div>
             <div class="prog-bg"><div class="prog-fill ${cls}" style="width:${p}%"></div></div>
@@ -581,6 +597,7 @@ function updateBudgetBars() {
     })
     html += '</div>'
     el.innerHTML = html
+    lucide.createIcons({ root: el })
     if (budgetOpen) budgetPanel.style.maxHeight = budgetPanel.scrollHeight + 200 + 'px'
 }
 
@@ -588,8 +605,8 @@ function checkBudgetAlert(t) {
     if (t.amount >= 0 || !budgets[t.category]) return
     const spent = transactions.filter(x => x.amount < 0 && x.category === t.category).reduce((s, x) => s + Math.abs(x.amount), 0)
     const pct   = (spent / budgets[t.category]) * 100
-    if (spent > budgets[t.category])  setTimeout(() => showToast(`🚨 <strong>${t.category}</strong> budget exceeded! Over by ₹${fmt(spent - budgets[t.category])}`, 'error', 6000), 500)
-    else if (pct >= 80)               setTimeout(() => showToast(`⚠️ <strong>${t.category}</strong> at ${Math.round(pct)}% of budget`, 'warning', 5000), 500)
+    if (spent > budgets[t.category])  setTimeout(() => showToast(`<strong>${t.category}</strong> budget exceeded! Over by ₹${fmt(spent - budgets[t.category])}`, 'error', 6000), 500)
+    else if (pct >= 80)               setTimeout(() => showToast(`<strong>${t.category}</strong> at ${Math.round(pct)}% of budget`, 'warning', 5000), 500)
 }
 
 // ============================================================

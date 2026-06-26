@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="theme-light">
 
@@ -24,7 +25,7 @@
     <div class="modal-overlay" id="edit-modal" onclick="closeEditModal(event)">
         <div class="modal-box">
             <div class="modal-header">
-                <h3>✏️ Edit Transaction</h3>
+                <h3><i data-lucide="edit-3" class="lucide-sm"></i> Edit Transaction</h3>
                 <button class="modal-close" onclick="closeEditModal()">✕</button>
             </div>
             <div class="modal-body">
@@ -41,12 +42,12 @@
                         <label class="field-label" for="edit-category">Category</label>
                         <div class="select-wrap">
                             <select id="edit-category" class="field-input field-select">
-                                <option value="Income">💰 Income</option>
-                                <option value="Food">🍔 Food</option>
-                                <option value="Transport">🛻 Transport</option>
-                                <option value="Entertainment">🎥 Entertainment</option>
-                                <option value="Shopping">🛍️ Shopping</option>
-                                <option value="Other">📦 Other</option>
+                                <option value="Income">Income</option>
+                                <option value="Food">Food</option>
+                                <option value="Transport">Transport</option>
+                                <option value="Entertainment">Entertainment</option>
+                                <option value="Shopping">Shopping</option>
+                                <option value="Other">Other</option>
                             </select>
                             <span class="select-arrow">▾</span>
                         </div>
@@ -68,7 +69,7 @@
 
             <!-- LEFT: Brand -->
             <a class="topnav-brand" href="#">
-                <span class="topnav-logo">💎</span>
+                <span class="topnav-logo"><i data-lucide="diamond"></i></span>
                 <span class="topnav-name">Finsight</span>
             </a>
 
@@ -93,9 +94,9 @@
             <!-- RIGHT: Theme switcher -->
             <div class="topnav-right">
                 <div class="theme-toggle" role="group" aria-label="Theme">
-                    <button class="tgl-btn active" id="sticky-theme-light" onclick="setTheme('light')" title="Light mode">☀️</button>
-                    <button class="tgl-btn"        id="sticky-theme-dark"  onclick="setTheme('dark')"  title="Dark mode">🌙</button>
-                    <button class="tgl-btn"        id="sticky-theme-glass" onclick="setTheme('glass')" title="Glass mode">✨</button>
+                    <button class="tgl-btn active" id="sticky-theme-light" onclick="setTheme('light')" title="Light mode"><i data-lucide="sun"></i></button>
+                    <button class="tgl-btn"        id="sticky-theme-dark"  onclick="setTheme('dark')"  title="Dark mode"><i data-lucide="moon"></i></button>
+                    <button class="tgl-btn"        id="sticky-theme-glass" onclick="setTheme('glass')" title="Glass mode"><i data-lucide="sparkles"></i></button>
                 </div>
             </div>
 
@@ -118,9 +119,9 @@
                 <h1>Your money,<br><span class="grad-text">beautifully tracked</span></h1>
                 <p class="hero-sub">All your data stays in your browser — nothing ever leaves your device.</p>
                 <div class="hero-trust">
-                    <span class="trust-pill">🔒 100% Private</span>
-                    <span class="trust-pill">⚡ Instant insights</span>
-                    <span class="trust-pill">📱 Mobile-friendly</span>
+                    <span class="trust-pill"><i data-lucide="lock" class="lucide-sm"></i> 100% Private</span>
+                    <span class="trust-pill"><i data-lucide="zap" class="lucide-sm"></i> Instant insights</span>
+                    <span class="trust-pill"><i data-lucide="smartphone" class="lucide-sm"></i> Mobile-friendly</span>
                 </div>
             </div>
 
@@ -130,7 +131,7 @@
                 <h2 class="bc-amount" id="balance">₹ 0</h2>
                 <div class="bc-row">
                     <div class="bc-stat">
-                        <div class="bc-icon bc-income-icon">↑</div>
+                        <div class="bc-icon bc-income-icon"><i data-lucide="arrow-up" class="lucide-sm"></i></div>
                         <div>
                             <p class="bc-label">Income</p>
                             <p class="bc-val" id="total-income">₹ 0</p>
@@ -138,7 +139,7 @@
                     </div>
                     <div class="bc-divider"></div>
                     <div class="bc-stat">
-                        <div class="bc-icon bc-expense-icon">↓</div>
+                        <div class="bc-icon bc-expense-icon"><i data-lucide="arrow-down" class="lucide-sm"></i></div>
                         <div>
                             <p class="bc-label">Spent</p>
                             <p class="bc-val" id="total-expense">₹ 0</p>
@@ -146,7 +147,7 @@
                     </div>
                     <div class="bc-divider"></div>
                     <div class="bc-stat">
-                        <div class="bc-icon bc-savings-icon">%</div>
+                        <div class="bc-icon bc-savings-icon"><i data-lucide="percent" class="lucide-sm"></i></div>
                         <div>
                             <p class="bc-label">Savings</p>
                             <p class="bc-val" id="savings-rate">–</p>
@@ -167,19 +168,19 @@
         <section class="section" id="section-add">
             <div class="section-head">
                 <div>
-                    <h2 class="section-title">➕ New Transaction</h2>
+                    <h2 class="section-title"><i data-lucide="plus-circle"></i> New Transaction</h2>
                     <p class="section-sub">Tap a category chip to pre-fill</p>
                 </div>
             </div>
 
             <!-- Quick chips -->
             <div class="quick-chips">
-                <button class="chip chip-income"  onclick="quickCat('Income')">💰 Income</button>
-                <button class="chip chip-food"    onclick="quickCat('Food')">🍔 Food</button>
-                <button class="chip chip-trans"   onclick="quickCat('Transport')">🛻 Transport</button>
-                <button class="chip chip-enter"   onclick="quickCat('Entertainment')">🎥 Fun</button>
-                <button class="chip chip-shop"    onclick="quickCat('Shopping')">🛍️ Shopping</button>
-                <button class="chip chip-other"   onclick="quickCat('Other')">📦 Other</button>
+                <button class="chip chip-income"  onclick="quickCat('Income')"><i data-lucide="coins" class="lucide-sm"></i> Income</button>
+                <button class="chip chip-food"    onclick="quickCat('Food')"><i data-lucide="utensils" class="lucide-sm"></i> Food</button>
+                <button class="chip chip-trans"   onclick="quickCat('Transport')"><i data-lucide="car" class="lucide-sm"></i> Transport</button>
+                <button class="chip chip-enter"   onclick="quickCat('Entertainment')"><i data-lucide="film" class="lucide-sm"></i> Fun</button>
+                <button class="chip chip-shop"    onclick="quickCat('Shopping')"><i data-lucide="shopping-bag" class="lucide-sm"></i> Shopping</button>
+                <button class="chip chip-other"   onclick="quickCat('Other')"><i data-lucide="package" class="lucide-sm"></i> Other</button>
             </div>
 
             <!-- Form card -->
@@ -190,7 +191,7 @@
                         <div class="input-combo">
                             <input type="text" id="description" class="field-input" placeholder="e.g. Salary, Zomato order, Netflix…" autocomplete="off"/>
                             <button id="suggest-btn" class="suggest-btn" title="Auto-detect category">
-                                <span id="suggest-icon">🤖</span>
+                                <span id="suggest-icon"><i data-lucide="wand-2" class="lucide-sm"></i></span>
                                 <span id="suggest-text">Suggest</span>
                             </button>
                         </div>
@@ -213,12 +214,12 @@
                         <div class="select-wrap">
                             <select id="category" class="field-input field-select">
                                 <option value="">Select Category</option>
-                                <option value="Income">💰 Income</option>
-                                <option value="Food">🍔 Food</option>
-                                <option value="Transport">🛻 Transport</option>
-                                <option value="Entertainment">🎥 Entertainment</option>
-                                <option value="Shopping">🛍️ Shopping</option>
-                                <option value="Other">📦 Other</option>
+                                <option value="Income">Income</option>
+                                <option value="Food">Food</option>
+                                <option value="Transport">Transport</option>
+                                <option value="Entertainment">Entertainment</option>
+                                <option value="Shopping">Shopping</option>
+                                <option value="Other">Other</option>
                             </select>
                             <span class="select-arrow">▾</span>
                         </div>
@@ -227,12 +228,12 @@
 
                 <div class="form-actions">
                     <button id="add-btn" class="btn btn-primary btn-add">
-                        <span>➕</span> Add Transaction
+                        <span><i data-lucide="plus-circle" class="lucide-sm"></i></span> Add Transaction
                     </button>
                     <button id="export-btn" class="btn btn-success">
-                        <span>📥</span> Export CSV
+                        <span><i data-lucide="download" class="lucide-sm"></i></span> Export CSV
                     </button>
-                    <button id="reset-btn" class="btn btn-danger-ghost" title="Reset all data">🗑️ Reset</button>
+                    <button id="reset-btn" class="btn btn-danger-ghost" title="Reset all data"><i data-lucide="trash-2" class="lucide-sm"></i> Reset</button>
                 </div>
             </div>
         </section>
@@ -241,12 +242,12 @@
         <section class="section">
             <div class="section-head">
                 <div>
-                    <h2 class="section-title">📊 Insights</h2>
+                    <h2 class="section-title"><i data-lucide="pie-chart"></i> Insights</h2>
                     <p class="section-sub">Your spending at a glance</p>
                 </div>
                 <div class="tab-group">
-                    <button class="tab active" id="tab-doughnut" onclick="switchChart('doughnut',this)">🍩 Overview</button>
-                    <button class="tab"         id="tab-bar"      onclick="switchChart('bar',this)">📊 By Category</button>
+                    <button class="tab active" id="tab-doughnut" onclick="switchChart('doughnut',this)"><i data-lucide="donut" class="lucide-sm"></i> Overview</button>
+                    <button class="tab"         id="tab-bar"      onclick="switchChart('bar',this)"><i data-lucide="bar-chart-3" class="lucide-sm"></i> By Category</button>
                 </div>
             </div>
             <div class="card chart-card">
@@ -264,7 +265,7 @@
         <section class="section">
             <div class="section-head clickable" id="budget-header-btn" onclick="toggleBudget()" aria-expanded="false" role="button">
                 <div>
-                    <h2 class="section-title">🎯 Budget Manager</h2>
+                    <h2 class="section-title"><i data-lucide="target"></i> Budget Manager</h2>
                     <p class="section-sub">Set monthly limits per category</p>
                 </div>
                 <div class="expand-icon" id="budget-toggle-icon">
@@ -273,16 +274,16 @@
             </div>
             <div class="budget-panel" id="budget-content">
                 <div class="card budget-card">
-                    <div class="budget-tip">💡 Set limits below and hit Save. You'll get instant alerts when you're close to or over budget.</div>
+                    <div class="budget-tip"><i data-lucide="lightbulb" class="lucide-sm" style="display:inline-block; vertical-align:middle; margin-right:4px;"></i> Set limits below and hit Save. You'll get instant alerts when you're close to or over budget.</div>
                     <div class="budget-grid">
-                        <div class="budget-field"><label for="budget-Food">🍔 Food</label><input type="number" id="budget-Food" placeholder="5000" min="0"></div>
-                        <div class="budget-field"><label for="budget-Transport">🛻 Transport</label><input type="number" id="budget-Transport" placeholder="2000" min="0"></div>
-                        <div class="budget-field"><label for="budget-Entertainment">🎥 Entertainment</label><input type="number" id="budget-Entertainment" placeholder="3000" min="0"></div>
-                        <div class="budget-field"><label for="budget-Shopping">🛍️ Shopping</label><input type="number" id="budget-Shopping" placeholder="4000" min="0"></div>
-                        <div class="budget-field"><label for="budget-Other">📦 Other</label><input type="number" id="budget-Other" placeholder="1000" min="0"></div>
+                        <div class="budget-field"><label for="budget-Food"><i data-lucide="utensils" class="lucide-sm"></i> Food</label><input type="number" id="budget-Food" placeholder="5000" min="0"></div>
+                        <div class="budget-field"><label for="budget-Transport"><i data-lucide="car" class="lucide-sm"></i> Transport</label><input type="number" id="budget-Transport" placeholder="2000" min="0"></div>
+                        <div class="budget-field"><label for="budget-Entertainment"><i data-lucide="film" class="lucide-sm"></i> Entertainment</label><input type="number" id="budget-Entertainment" placeholder="3000" min="0"></div>
+                        <div class="budget-field"><label for="budget-Shopping"><i data-lucide="shopping-bag" class="lucide-sm"></i> Shopping</label><input type="number" id="budget-Shopping" placeholder="4000" min="0"></div>
+                        <div class="budget-field"><label for="budget-Other"><i data-lucide="package" class="lucide-sm"></i> Other</label><input type="number" id="budget-Other" placeholder="1000" min="0"></div>
                         <div class="budget-field budget-save-wrap">
                             <label>&nbsp;</label>
-                            <button id="save-budgets-btn" class="btn btn-primary" style="width:100%" onclick="saveAllBudgets()">💾 Save Budgets</button>
+                            <button id="save-budgets-btn" class="btn btn-primary" style="width:100%" onclick="saveAllBudgets()"><i data-lucide="save" class="lucide-sm"></i> Save Budgets</button>
                         </div>
                     </div>
                     <div id="budget-bars"></div>
@@ -294,7 +295,7 @@
         <section class="section" id="section-history">
             <div class="section-head">
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                    <h2 class="section-title">📋 History</h2>
+                    <h2 class="section-title"><i data-lucide="clipboard-list"></i> History</h2>
                     <span class="count-pill" id="filter-count"></span>
                 </div>
                 <div class="period-tabs">
@@ -307,27 +308,27 @@
             <!-- Filter bar -->
             <div class="filter-bar">
                 <div class="search-wrap">
-                    <span class="search-icon">🔍</span>
+                    <span class="search-icon"><i data-lucide="search" class="lucide-sm"></i></span>
                     <input type="text" id="search-input" placeholder="Search transactions…"/>
                     <button class="search-clear" id="search-clear" onclick="clearSearch()">✕</button>
                 </div>
                 <div class="select-wrap filter-sel">
                     <select id="filter-category">
                         <option value="">All Categories</option>
-                        <option value="Income">💰 Income</option>
-                        <option value="Food">🍔 Food</option>
-                        <option value="Transport">🛻 Transport</option>
-                        <option value="Entertainment">🎥 Entertainment</option>
-                        <option value="Shopping">🛍️ Shopping</option>
-                        <option value="Other">📦 Other</option>
+                        <option value="Income">Income</option>
+                        <option value="Food">Food</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Other">Other</option>
                     </select>
                     <span class="select-arrow">▾</span>
                 </div>
                 <div class="select-wrap filter-sel">
                     <select id="filter-type">
                         <option value="">All Types</option>
-                        <option value="income">💚 Income</option>
-                        <option value="expense">❤️ Expenses</option>
+                        <option value="income">Income</option>
+                        <option value="expense">Expenses</option>
                     </select>
                     <span class="select-arrow">▾</span>
                 </div>
@@ -341,16 +342,20 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="footer-inner">
-            <div class="footer-brand">💎 Finsight</div>
+            <div class="footer-brand"><i data-lucide="diamond" class="lucide-sm"></i> Finsight</div>
             <p class="footer-desc">Free, private personal finance tracking. All data is stored locally in your browser — nothing is ever sent anywhere.</p>
             <div class="footer-badges">
-                <span>🔒 No account required</span>
-                <span>📴 Works offline</span>
-                <span>💾 100% local storage</span>
+                <span><i data-lucide="lock" class="lucide-sm"></i> No account required</span>
+                <span><i data-lucide="wifi-off" class="lucide-sm"></i> Works offline</span>
+                <span><i data-lucide="database" class="lucide-sm"></i> 100% local storage</span>
             </div>
         </div>
     </footer>
 
     <script src="script.js"></script>
+    <script>
+        // Initialize lucide icons for static HTML
+        lucide.createIcons();
+    </script>
 </body>
 </html>
